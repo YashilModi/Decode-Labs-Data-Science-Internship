@@ -1,0 +1,171 @@
+#Project 3: Unsupervised Learning - Customer Segmentation
+
+import os
+import glob
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+#1. Load the dataset
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))#Had problems importing the file
+search_pattern = os.path.join(SCRIPT_DIR, "*.xlsx")
+excel_files_found = glob.glob(search_pattern)
+if len(excel_files_found) == 0:
+    raise FileNotFoundError(
+        "No .xlsx file found in the script folder. "
+        "Place cleaned_engineered_dataset.xlsx (from Project 1) in this folder."
+    )
+input_file_path = excel_files_found[0]
+df = pd.read_excel(input_file_path)
+# Check Date column is actually a date, not text
+df["Date"] = pd.to_datetime(df["Date"])
+print("1. Data loaded")
+print("File used:", os.path.basename(input_file_path))
+print("Number of rows (orders):", df.shape[0])
+print("Number of columns:", df.shape[1])
+print("")
+
+#2. Build one row per customer
+if "HasCoupon" not in df.columns:
+    df["HasCoupon"] = 0
+    df.loc[df["CouponCode"] != "No Coupon", "HasCoupon"] = 1
+customer_df = df.groupby("CustomerID").agg(
+    OrderCount=("CustomerID", "count"),
+    TotalSpend=("TotalPrice", "sum"),
+    AvgOrderValue=("TotalPrice", "mean"),
+    AvgItemsInCart=("ItemsInCart", "mean"),
+    CouponUsageRate=("HasCoupon", "mean"),
+    LastOrderDate=("Date", "max"),
+).reset_index()
+# Recency: how many days ago was this customer's most recent order, measured from the most recent date anywhere in the dataset.
+most_recent_date = df["Date"].max()
+customer_df["RecencyDays"] = (most_recent_date - customer_df["LastOrderDate"]).dt.days
+customer_df = customer_df.drop(columns=["LastOrderDate"])
+print("2. Customer-level features built")
+print("Number of unique customers:", customer_df.shape[0])
+print(customer_df.head())
+
+#3. Scale the features
+feature_columns = [
+    "OrderCount",
+    "TotalSpend",
+    "AvgOrderValue",
+    "AvgItemsInCart",
+    "CouponUsageRate",
+    "RecencyDays",
+]
+X = customer_df[feature_columns]
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+print("3. Features scaled")
+print("Features used:", feature_columns)
+
+#4. Compress the features with PCA
+pca_full = PCA()
+pca_full.fit(X_scaled)
+explained_variance = pca_full.explained_variance_ratio_
+cumulative_variance = np.cumsum(explained_variance)
+print("4. Checking how many PCA components we need")
+for i in range(len(cumulative_variance)):
+    component_number = i + 1
+    variance_so_far = round(cumulative_variance[i], 4)
+    print("Components:", component_number, "-> Cumulative variance explained:", variance_so_far)
+# Find the smallest number of components that reaches 95%
+n_components = 1
+for i in range(len(cumulative_variance)):
+    if cumulative_variance[i] >= 0.95:
+        n_components = i + 1
+        break
+print("Number of components chosen (95% rule):", n_components)
+# Make a folder to save all plots into
+plots_folder = os.path.join(SCRIPT_DIR, "cluster_plots")
+os.makedirs(plots_folder, exist_ok=True)
+# Plot the cumulative variance curve
+plt.figure(figsize=(8, 5))
+plt.plot(range(1, len(cumulative_variance) + 1), cumulative_variance, marker="o")
+plt.axhline(y=0.95, color="red", linestyle="--", label="95% threshold")
+plt.xlabel("Number of Principal Components")
+plt.ylabel("Cumulative Explained Variance")
+plt.title("PCA: Choosing the Number of Components")
+plt.legend()
+plt.savefig(os.path.join(plots_folder, "pca_variance.png"))
+plt.close()
+# Refit PCA using only the chosen number of components
+pca = PCA(n_components=n_components)
+X_pca = pca.fit_transform(X_scaled)
+
+# STEP 5: Test different numbers of clusters
+
+k_values = range(2, 11)
+wcss_list = []
+silhouette_list = []
+for k in k_values:
+    kmeans_test = KMeans(n_clusters=k, random_state=42, n_init=10)
+    labels_test = kmeans_test.fit_predict(X_pca)
+    wcss_value = kmeans_test.inertia_
+    silhouette_value = silhouette_score(X_pca, labels_test)
+    wcss_list.append(wcss_value)
+    silhouette_list.append(silhouette_value)
+    print("K =", k, "-> WCSS:", round(wcss_value, 2), "| Silhouette Score:", round(silhouette_value, 4))
+print("")
+# Plot the Elbow Method curve
+plt.figure(figsize=(8, 5))
+plt.plot(list(k_values), wcss_list, marker="o")
+plt.xlabel("Number of Clusters (K)")
+plt.ylabel("WCSS")
+plt.title("Elbow Method")
+plt.savefig(os.path.join(plots_folder, "elbow_method.png"))
+plt.close()
+# Plot the Silhouette Score curve
+plt.figure(figsize=(8, 5))
+plt.plot(list(k_values), silhouette_list, marker="o", color="green")
+plt.xlabel("Number of Clusters (K)")
+plt.ylabel("Silhouette Score")
+plt.title("Silhouette Score by K")
+plt.savefig(os.path.join(plots_folder, "silhouette_scores.png"))
+plt.close()
+# Pick the K with the highest silhouette score
+best_index = silhouette_list.index(max(silhouette_list))
+best_k = list(k_values)[best_index]
+print("5. Best K chosen based on highest Silhouette Score:", best_k)
+print("Open elbow_method.png and check the bend in the curve matches this choice.")
+print("")
+
+#6. Run the final K-Means model
+
+kmeans_final = KMeans(n_clusters=best_k, random_state=42, n_init=10)
+cluster_labels = kmeans_final.fit_predict(X_pca)
+customer_df["Cluster"] = cluster_labels
+print("6. Final clustering complete")
+print("Number of clusters:", best_k)
+print(customer_df["Cluster"].value_counts())
+print("")
+# Save a 2D scatter plot of the clusters using the first 2 PCA components
+plt.figure(figsize=(8, 6))
+plt.scatter(X_pca[:, 0], X_pca[:, 1], c=cluster_labels, cmap="tab10")
+plt.xlabel("Principal Component 1")
+plt.ylabel("Principal Component 2")
+plt.title("Customer Clusters (PCA space)")
+plt.savefig(os.path.join(plots_folder, "customer_clusters.png"))
+plt.close()
+
+# 7.Translate cluster centers back into real numbers
+centers_pca_space = kmeans_final.cluster_centers_
+centers_scaled_space = pca.inverse_transform(centers_pca_space)
+centers_original_space = scaler.inverse_transform(centers_scaled_space)
+cluster_profiles = pd.DataFrame(centers_original_space, columns=feature_columns)
+cluster_profiles.index.name = "Cluster"
+print("7. Cluster profiles (translated back to real numbers)")
+print(cluster_profiles.round(2))
+print("")
+
+#8.Save the results
+output_customer_file = os.path.join(SCRIPT_DIR, "customer_segments.xlsx")
+customer_df.to_excel(output_customer_file, index=False)
+output_profile_file = os.path.join(SCRIPT_DIR, "cluster_profiles.xlsx")
+cluster_profiles.to_excel(output_profile_file)
