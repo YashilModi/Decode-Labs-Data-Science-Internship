@@ -1,0 +1,36 @@
+1. Data loaded
+Number of rows: 1200
+Number of columns: 14
+2. Handling missing data
+Missing values per column:
+CouponCode    309
+dtype: int64
+Remaining missing values in the whole dataset: 0
+
+3. Checking for outliers
+
+Column: Quantity
+Lower limit: -1.0
+Upper limit: 7.0
+Outliers found (IQR): 0
+Outliers found (Z-score > 3): 0
+
+Column: UnitPrice
+Lower limit: -317.2
+Upper limit: 1024.83
+Outliers found (IQR): 0
+Outliers found (Z-score > 3): 0
+
+Column: ItemsInCart
+Lower limit: -0.5
+Upper limit: 11.5
+Outliers found (IQR): 0
+Outliers found (Z-score > 3): 0
+
+4. Creating new features
+High value cutoff used: 1578.48
+Orders marked as high value: 300
+Orders that used a coupon: 891
+
+5. Saving the cleaned dataset
+Saved to: cleaned_dataset.xlsx

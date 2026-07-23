@@ -1,3 +1,24 @@
+# Large source dataset
+Task 2/creditcard.csv
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments and tool caches
+.venv/
+.venv-1/
+.venv-2/
+.ruff_cache/
+
+# Windows and OneDrive files
+desktop.ini
+
+# Backup and superseded presentations
+*_Deck_ORIGINAL_backup.pptx
+*_Deck.pptx
+
+
    .venv/
    __pycache__/
    *.pyc

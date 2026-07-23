@@ -1,0 +1,44 @@
+1. Data loaded
+Number of rows: 284807
+Number of columns: 31
+
+2. Class balance
+Legitimate payments (0): 284315
+Fraud payments (1): 492
+Fraud percentage: 0.173
+
+3. Splitting the data
+Training rows: 227845
+Test rows: 56962
+
+5. Tuning the models
+Tuning metric used by GridSearchCV: roc_auc
+Logistic Regression best settings: {'classifier__C': 0.01, 'smote__k_neighbors': 5}
+Random Forest best settings: {'classifier__max_depth': 10, 'smote__k_neighbors': 3}
+
+6. Test set results
+
+Logistic Regression
+Precision: 0.0585
+Recall: 0.9184
+F1 score: 0.11
+ROC-AUC: 0.9715
+Average precision (PR-AUC): 0.7133
+Confusion matrix:
+[[55416  1448]
+ [    8    90]]
+
+Random Forest
+Precision: 0.5548
+Recall: 0.8776
+F1 score: 0.6798
+ROC-AUC: 0.9829
+Average precision (PR-AUC): 0.816
+Confusion matrix:
+[[56795    69]
+ [   12    86]]
+
+7. Charts and model_comparison.csv saved to the outputs folder
+              model  precision   recall       f1  roc_auc  avg_precision  true_negatives  false_positives  false_negatives  true_positives
+Logistic Regression   0.058518 0.918367 0.110024 0.971461       0.713337           55416             1448                8              90
+      Random Forest   0.554839 0.877551 0.679842 0.982870       0.815986           56795               69               12              86
